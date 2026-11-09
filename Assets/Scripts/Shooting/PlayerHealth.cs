@@ -50,6 +50,11 @@ namespace YashGame.Shooting
 
         private void Awake()
         {
+            if (DifficultyManager.Instance != null)
+            {
+                _maxHealth *= DifficultyManager.Instance.PlayerHealthMultiplier;
+            }
+
             _currentHealth = _maxHealth;
             _audioSource = gameObject.AddComponent<AudioSource>();
             _audioSource.playOnAwake = false;

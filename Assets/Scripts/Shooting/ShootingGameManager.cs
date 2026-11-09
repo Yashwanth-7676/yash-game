@@ -7,51 +7,55 @@ using YashGame.Shared;
 namespace YashGame.Shooting
 {
     /// <summary>
-    /// Master coordinator for the 3D third-person shooting game.
-    /// Builds the battlefield map, spawns player and enemy bots, tracks elimination objectives,
-    /// manages victory and defeat states, and routes scene returns back to the YASH GAME main menu.
+    /// Master coordinator for YASH GAME Shooting Mode (Phases 2, 3 & 4).
+    /// Orchestrates:
+    /// - 4 Selectable 3D Battlefield Maps (MapManager)
+    /// - Player character with 4-weapon arsenal (WeaponManager)
+    /// - 3 Enemy archetypes with difficulty scaling (EnemyAI, EnemySpawner)
+    /// - 3 Playable missions: Sector Purge, Last Stand, Cyber Warlord (MissionManager)
+    /// - Persistent rewards, star progression & map unlocks (RewardManager, MissionProgressManager, MapUnlockManager)
+    /// - Difficulty system (DifficultyManager)
+    /// - Mobile landscape HUD, controls & modals (ShootingHUD)
     /// </summary>
     public class ShootingGameManager : MonoBehaviour
     {
-        #region Static Singleton
-
         public static ShootingGameManager Instance { get; private set; }
-
-        #endregion
 
         #region Serialized Settings
 
-        [Header("Mission Objectives")]
-        [SerializeField, Tooltip("Target enemies to eliminate.")]
-        private int _totalTargets = 5;
-
         [Header("Audio")]
-        [SerializeField, Tooltip("Victory fanfare sound.")]
-        private AudioClip _victoryClip;
+        [SerializeField] private AudioClip _victoryClip;
 
         #endregion
 
         #region Public Properties
 
-        public int TotalTargets => _totalTargets;
-        public int EliminatedTargets => _eliminatedTargets;
-        public bool IsGameOver => _isGameOver;
         public GameObject PlayerObject { get; private set; }
+        public WeaponManager PlayerWeaponManager { get; private set; }
+        public bool IsGameOver => _isGameOver;
+        public string ActiveMapId => _activeMapId;
 
         #endregion
 
         #region Private Fields
 
-        private int _eliminatedTargets = 0;
         private bool _isGameOver = false;
+        private string _activeMapId = "desert";
 
-        private BattlefieldBuilder _battlefieldBuilder;
+        private MapManager _mapManager;
         private ShootingHUD _hud;
         private MobileInputController _input;
         private ThirdPersonCamera _cameraController;
         private AudioSource _audioSource;
 
-        private List<GameObject> _activeEnemies = new List<GameObject>();
+        private EnemySpawner _enemySpawner;
+        private MissionManager _missionManager;
+        private RewardManager _rewardManager;
+        private DifficultyManager _difficultyManager;
+        private MapUnlockManager _mapUnlockManager;
+        private MissionProgressManager _missionProgressManager;
+
+        private PlayerHealth _playerHealth;
 
         #endregion
 
@@ -73,7 +77,7 @@ namespace YashGame.Shooting
             _audioSource.playOnAwake = false;
             _victoryClip = Resources.Load<AudioClip>("Audio/Shooting/Victory_Fanfare");
 
-            SetupEnvironmentAndGameplay();
+            SetupShootingSystems();
         }
 
         private void Start()
@@ -97,40 +101,123 @@ namespace YashGame.Shooting
 
         #endregion
 
-        #region Game Setup & Spawning
+        #region Runtime Auto-Bootstrap
 
-        private void SetupEnvironmentAndGameplay()
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void OnSceneLoadedRuntime()
         {
-            // 1. Input Controller
-            if (_input == null)
+            CheckAndBootstrap();
+            SceneManager.sceneLoaded += (scene, mode) => CheckAndBootstrap();
+        }
+
+        private static void CheckAndBootstrap()
+        {
+            Scene active = SceneManager.GetActiveScene();
+            if (active.name == SceneLoader.SHOOTING || active.name == "ShootingGame")
             {
-                _input = FindObjectOfType<MobileInputController>();
-                if (_input == null)
+                if (Instance == null && FindObjectOfType<ShootingGameManager>() == null)
                 {
-                    GameObject inputObj = new GameObject("MobileInputController");
-                    _input = inputObj.AddComponent<MobileInputController>();
+                    GameObject managerObj = new GameObject("ShootingGameManager");
+                    managerObj.AddComponent<ShootingGameManager>();
                 }
             }
+        }
 
-            // 2. Build 3D Battlefield Map
-            _battlefieldBuilder = GetComponent<BattlefieldBuilder>();
-            if (_battlefieldBuilder == null)
-            {
-                _battlefieldBuilder = gameObject.AddComponent<BattlefieldBuilder>();
-            }
-            _battlefieldBuilder.BuildBattlefield();
+        #endregion
 
-            // 3. Setup Camera
+        #region Core Systems Orchestration
+
+        private void SetupShootingSystems()
+        {
+            // 1. Mobile Input Controller
+            EnsureMobileInput();
+
+            // 2. Persistent Reward & Economy Managers
+            EnsureProgressionManagers();
+
+            // 3. Combat Effects Pool
+            EnsureCombatEffects();
+
+            // 4. Build Selected 3D Battlefield Map (Desert, City, Military, Forest)
+            EnsureBattlefieldMap();
+
+            // 5. Setup Camera & Lighting
             SetupCamera();
 
-            // 4. Spawn Player Character
+            // 6. Spawn Player Character with WeaponManager & Health Multipliers
             SpawnPlayer();
 
-            // 5. Spawn Enemy Combat Bots
-            SpawnEnemyBots();
+            // 7. Setup Enemy Spawner
+            EnsureEnemySpawner();
 
-            // 6. Setup Shooting HUD
+            // 8. Setup Mission Manager (Elimination, Survival, Assassination)
+            EnsureMissionManager();
+
+            // 9. Setup Shooting HUD
             SetupHUD();
+        }
+
+        private void EnsureMobileInput()
+        {
+            _input = FindObjectOfType<MobileInputController>();
+            if (_input == null)
+            {
+                GameObject inputObj = new GameObject("MobileInputController");
+                _input = inputObj.AddComponent<MobileInputController>();
+            }
+        }
+
+        private void EnsureProgressionManagers()
+        {
+            _rewardManager = RewardManager.Instance ?? FindObjectOfType<RewardManager>();
+            if (_rewardManager == null)
+            {
+                GameObject rewardObj = new GameObject("RewardManager");
+                _rewardManager = rewardObj.AddComponent<RewardManager>();
+            }
+
+            _difficultyManager = DifficultyManager.Instance ?? FindObjectOfType<DifficultyManager>();
+            if (_difficultyManager == null)
+            {
+                GameObject diffObj = new GameObject("DifficultyManager");
+                _difficultyManager = diffObj.AddComponent<DifficultyManager>();
+            }
+
+            _mapUnlockManager = MapUnlockManager.Instance ?? FindObjectOfType<MapUnlockManager>();
+            if (_mapUnlockManager == null)
+            {
+                GameObject unlockObj = new GameObject("MapUnlockManager");
+                _mapUnlockManager = unlockObj.AddComponent<MapUnlockManager>();
+            }
+
+            _missionProgressManager = MissionProgressManager.Instance ?? FindObjectOfType<MissionProgressManager>();
+            if (_missionProgressManager == null)
+            {
+                GameObject progObj = new GameObject("MissionProgressManager");
+                _missionProgressManager = progObj.AddComponent<MissionProgressManager>();
+            }
+        }
+
+        private void EnsureCombatEffects()
+        {
+            if (CombatEffects.Instance == null && FindObjectOfType<CombatEffects>() == null)
+            {
+                GameObject fxObj = new GameObject("CombatEffects");
+                fxObj.AddComponent<CombatEffects>();
+            }
+        }
+
+        private void EnsureBattlefieldMap()
+        {
+            _activeMapId = PlayerPrefs.GetString("YashGame_SelectedMap", "desert");
+
+            _mapManager = GetComponent<MapManager>();
+            if (_mapManager == null)
+            {
+                _mapManager = gameObject.AddComponent<MapManager>();
+            }
+
+            _mapManager.BuildMap(_activeMapId);
         }
 
         private void SetupCamera()
@@ -144,18 +231,6 @@ namespace YashGame.Shooting
                 camObj.AddComponent<AudioListener>();
             }
 
-            // Directional Light
-            if (FindObjectOfType<Light>() == null)
-            {
-                GameObject lightObj = new GameObject("SunLight");
-                Light sun = lightObj.AddComponent<Light>();
-                sun.type = LightType.Directional;
-                sun.color = new Color(1f, 0.95f, 0.88f);
-                sun.intensity = 1.15f;
-                sun.shadows = LightShadows.Soft;
-                lightObj.transform.rotation = Quaternion.Euler(45f, -35f, 0f);
-            }
-
             _cameraController = mainCam.GetComponent<ThirdPersonCamera>();
             if (_cameraController == null)
             {
@@ -165,20 +240,24 @@ namespace YashGame.Shooting
 
         private void SpawnPlayer()
         {
-            Vector3 spawnPos = new Vector3(0f, 0.5f, -38f);
-            if (_battlefieldBuilder != null && _battlefieldBuilder.PlayerSpawnPoint != null)
+            Vector3 spawnPos = new Vector3(0f, 0.5f, -42f);
+            if (_mapManager != null && _mapManager.PlayerSpawnPoint != null)
             {
-                spawnPos = _battlefieldBuilder.PlayerSpawnPoint.position;
+                spawnPos = _mapManager.PlayerSpawnPoint.position;
             }
 
             PlayerObject = new GameObject("PlayerCharacter");
             PlayerObject.tag = "Player";
             PlayerObject.transform.position = spawnPos;
 
-            // Add Components
+            // Add Locomotion & Health
             PlayerMovement pm = PlayerObject.AddComponent<PlayerMovement>();
-            PlayerHealth ph = PlayerObject.AddComponent<PlayerHealth>();
-            WeaponController weapon = PlayerObject.AddComponent<WeaponController>();
+            _playerHealth = PlayerObject.AddComponent<PlayerHealth>();
+
+            // Phase 3 Master 4-Weapon Manager
+            PlayerWeaponManager = PlayerObject.AddComponent<WeaponManager>();
+
+            _playerHealth.OnDied += HandlePlayerDied;
 
             // Connect Camera
             if (_cameraController != null)
@@ -187,32 +266,26 @@ namespace YashGame.Shooting
             }
         }
 
-        private void SpawnEnemyBots()
+        private void EnsureEnemySpawner()
         {
-            _activeEnemies.Clear();
-            _eliminatedTargets = 0;
-
-            if (_battlefieldBuilder == null || _battlefieldBuilder.EnemySpawnPoints.Count == 0) return;
-
-            int count = Mathf.Min(_totalTargets, _battlefieldBuilder.EnemySpawnPoints.Count);
-
-            for (int i = 0; i < count; i++)
+            _enemySpawner = EnemySpawner.Instance;
+            if (_enemySpawner == null)
             {
-                Vector3 spawnPos = _battlefieldBuilder.EnemySpawnPoints[i];
-                GameObject bot = new GameObject($"EnemyBot_{i + 1}");
-                bot.tag = "Enemy";
-                bot.transform.position = spawnPos + Vector3.up * 0.2f;
-
-                EnemyHealth eh = bot.AddComponent<EnemyHealth>();
-                EnemyController ec = bot.AddComponent<EnemyController>();
-
-                if (i < _battlefieldBuilder.EnemyPatrolRoutes.Count)
-                {
-                    ec.SetWaypoints(_battlefieldBuilder.EnemyPatrolRoutes[i]);
-                }
-
-                _activeEnemies.Add(bot);
+                GameObject spawnerObj = new GameObject("EnemySpawner");
+                _enemySpawner = spawnerObj.AddComponent<EnemySpawner>();
             }
+        }
+
+        private void EnsureMissionManager()
+        {
+            _missionManager = MissionManager.Instance;
+            if (_missionManager == null)
+            {
+                GameObject missionObj = new GameObject("MissionManager");
+                _missionManager = missionObj.AddComponent<MissionManager>();
+            }
+
+            _missionManager.OnMissionCompleted += HandleMissionCompleted;
         }
 
         private void SetupHUD()
@@ -224,71 +297,48 @@ namespace YashGame.Shooting
                 _hud = hudObj.AddComponent<ShootingHUD>();
             }
 
-            _hud.UpdateObjectiveUI(_eliminatedTargets, _totalTargets);
             _hud.HookPlayerComponents();
         }
 
         #endregion
 
-        #region Match Progression & Objectives
+        #region Game Progression & Event Handlers
 
-        public void OnTargetEliminated(GameObject enemy, int scoreValue)
-        {
-            if (_isGameOver) return;
-
-            _eliminatedTargets++;
-            if (_activeEnemies.Contains(enemy))
-            {
-                _activeEnemies.Remove(enemy);
-            }
-
-            if (_hud != null)
-            {
-                _hud.UpdateObjectiveUI(_eliminatedTargets, _totalTargets);
-            }
-
-            Debug.Log($"[ShootingGameManager] Target eliminated! ({_eliminatedTargets}/{_totalTargets})");
-
-            if (_eliminatedTargets >= _totalTargets)
-            {
-                StartCoroutine(VictorySequenceRoutine());
-            }
-        }
-
-        public void OnPlayerDefeated()
+        private void HandlePlayerDied()
         {
             if (_isGameOver) return;
             _isGameOver = true;
 
-            Debug.Log("[ShootingGameManager] Mission Failed: Player operative eliminated.");
-            StartCoroutine(DefeatSequenceRoutine());
-        }
-
-        private IEnumerator VictorySequenceRoutine()
-        {
-            _isGameOver = true;
-            Debug.Log("[ShootingGameManager] ALL TARGETS ELIMINATED! MISSION ACCOMPLISHED!");
-
-            if (_victoryClip != null && _audioSource != null)
-            {
-                _audioSource.PlayOneShot(_victoryClip, 0.9f);
-            }
-
-            yield return new WaitForSeconds(1.2f);
-
-            if (_hud != null)
-            {
-                _hud.ShowVictoryModal(true);
-            }
-        }
-
-        private IEnumerator DefeatSequenceRoutine()
-        {
-            yield return new WaitForSeconds(1.2f);
-
+            Debug.Log("[ShootingGameManager] Player eliminated. Mission compromised.");
             if (_hud != null)
             {
                 _hud.ShowDefeatModal(true);
+            }
+        }
+
+        private void HandleMissionCompleted(MissionData mission, bool victory, int coinsEarned, float duration)
+        {
+            if (victory)
+            {
+                // Play victory fanfare sound
+                if (_victoryClip != null && _audioSource != null)
+                {
+                    _audioSource.PlayOneShot(_victoryClip, 0.9f);
+                }
+
+                // Record map mission progression & unlock next map
+                if (_missionProgressManager != null)
+                {
+                    float healthPercent = (_playerHealth != null && _playerHealth.MaxHealth > 0f)
+                        ? (_playerHealth.CurrentHealth / _playerHealth.MaxHealth)
+                        : 0.5f;
+
+                    DifficultyLevel diff = (_difficultyManager != null)
+                        ? _difficultyManager.CurrentDifficulty
+                        : DifficultyLevel.Normal;
+
+                    _missionProgressManager.RecordMissionCompletion(_activeMapId, duration, healthPercent, diff);
+                }
             }
         }
 

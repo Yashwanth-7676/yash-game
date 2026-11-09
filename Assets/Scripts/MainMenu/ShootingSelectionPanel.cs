@@ -48,13 +48,15 @@ namespace YashGame.MainMenu
         #region Constants
 
         private const string DEFAULT_TITLE = "SECTOR 7: URBAN WARFARE";
-        private const string DEFAULT_SUBTITLE = "THIRD-PERSON TACTICAL ARENA";
+        private const string DEFAULT_SUBTITLE = "THIRD-PERSON ADVANCED TACTICAL COMBAT";
         private const string DEFAULT_BRIEFING =
-            "• Primary Weapon: Tactical Assault Rifle M4A1\n" +
-            "• Secondary: Heavy Combat Pistol 9mm\n" +
-            "• Enemy Forces: 5 Autonomous AI Sentinels\n" +
-            "• Objective: Eliminate all hostile bots & survive\n" +
-            "• Controls: Mobile Dual-Stick (Move + Camera Rotation)";
+            "• Arsenal: M4A1 Rifle, 9mm Pistol, SG-12 Shotgun, V-50 Sniper\n" +
+            "• Hostiles: Tactical Soldiers, Heavy Juggernauts & Fast Skirmishers\n" +
+            "• Missions: Sector Purge, Last Stand (Survival), Cyber Warlord\n" +
+            "• Rewards: Gold Coins for Eliminations & Mission Completion\n" +
+            "• Controls: Dual-Stick Touch / WASD + Mouse + 1-4 Weapon Switching";
+
+        private MapSelectionController _mapSelectionController;
 
         #endregion
 
@@ -65,6 +67,13 @@ namespace YashGame.MainMenu
             if (_canvasGroup == null)
             {
                 _canvasGroup = GetComponent<CanvasGroup>();
+            }
+
+            // Phase 4 Map Selection Controller integration
+            _mapSelectionController = GetComponent<MapSelectionController>();
+            if (_mapSelectionController == null)
+            {
+                _mapSelectionController = gameObject.AddComponent<MapSelectionController>();
             }
 
             // Set default texts if assigned
@@ -106,6 +115,7 @@ namespace YashGame.MainMenu
         public void Show()
         {
             gameObject.SetActive(true);
+            _mapSelectionController?.UpdateDisplay();
             StopAllCoroutines();
             StartCoroutine(AnimateShow());
         }

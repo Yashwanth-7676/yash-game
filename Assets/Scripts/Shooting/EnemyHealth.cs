@@ -81,6 +81,13 @@ namespace YashGame.Shooting
 
         #region Damage Handling
 
+        public void SetMaxHealth(float maxHealth)
+        {
+            _maxHealth = maxHealth;
+            _currentHealth = maxHealth;
+            OnHealthChanged?.Invoke(_currentHealth, _maxHealth);
+        }
+
         public void TakeDamage(float amount, Vector3 hitPoint, Vector3 hitDirection)
         {
             if (!IsAlive || _isDying) return;
