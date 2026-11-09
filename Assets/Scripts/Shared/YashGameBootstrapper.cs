@@ -108,9 +108,9 @@ namespace YashGame.Shared
 
         private static void EnsureShootingScene()
         {
-            if (Object.FindObjectOfType<ShootingScenePlaceholder>() == null)
+            if (Object.FindObjectOfType<ShootingGameManager>() == null)
             {
-                GameObject obj = new GameObject("ShootingSceneSetup", typeof(ShootingScenePlaceholder));
+                GameObject obj = new GameObject("ShootingGameManager", typeof(ShootingGameManager));
             }
         }
 

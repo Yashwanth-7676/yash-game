@@ -41,7 +41,7 @@ namespace YashGame.Editor
 
             SetupScene(SCENE_SHOOTING, (scene) =>
             {
-                EnsureGameObjectWithComponent<ShootingScenePlaceholder>("ShootingSceneSetup");
+                EnsureGameObjectWithComponent<ShootingGameManager>("ShootingGameManager");
             });
 
             SetupScene(SCENE_RACING, (scene) =>

@@ -61,7 +61,6 @@ namespace YashGame.Shooting
         private MobileInputController _input;
         private float _currentSpeed;
         private float _verticalVelocity;
-        private Vector3 _currentMoveVelocity;
 
         // Procedural Animation Parts
         private Transform _modelRoot;

@@ -195,6 +195,12 @@ namespace YashGame.Shooting
             PlayMuzzleEffects();
             PlayGunshotAudio();
 
+            if (_mainCamera != null)
+            {
+                ThirdPersonCamera cam = _mainCamera.GetComponent<ThirdPersonCamera>();
+                if (cam != null) cam.ApplyRecoilKick(_cameraRecoilKick);
+            }
+
             return true;
         }
 
@@ -437,15 +443,28 @@ namespace YashGame.Shooting
 
         private void EnsureRifleModel()
         {
-            if (transform.Find("RifleModel") != null)
+            if (_playerMovement == null)
             {
-                _rifleModel = transform.Find("RifleModel");
+                _playerMovement = GetComponentInParent<PlayerMovement>();
+            }
+
+            Transform parentSocket = (_playerMovement != null && _playerMovement.WeaponSocket != null)
+                ? _playerMovement.WeaponSocket
+                : transform;
+
+            _mountSocket = parentSocket;
+
+            if (parentSocket.Find("RifleModel") != null)
+            {
+                _rifleModel = parentSocket.Find("RifleModel");
                 _muzzleTransform = _rifleModel.Find("Muzzle");
                 return;
             }
 
             GameObject modelObj = new GameObject("RifleModel");
-            modelObj.transform.SetParent(transform, false);
+            modelObj.transform.SetParent(parentSocket, false);
+            modelObj.transform.localPosition = Vector3.zero;
+            modelObj.transform.localRotation = Quaternion.identity;
             _rifleModel = modelObj.transform;
 
             Material gunMetal = new Material(Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard"));

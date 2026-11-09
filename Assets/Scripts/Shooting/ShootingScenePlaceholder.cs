@@ -54,6 +54,12 @@ namespace YashGame.Shooting
 
         private void Awake()
         {
+            if (FindObjectOfType<ShootingGameManager>() != null)
+            {
+                Destroy(this);
+                return;
+            }
+
             EnsureHUD();
         }
 

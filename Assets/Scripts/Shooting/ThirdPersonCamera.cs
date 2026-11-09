@@ -126,6 +126,15 @@ namespace YashGame.Shooting
             _playerMovement = _target.GetComponent<PlayerMovement>();
         }
 
+        /// <summary>
+        /// Applies procedural vertical recoil kick to camera pitch.
+        /// </summary>
+        public void ApplyRecoilKick(float verticalKick)
+        {
+            _pitch -= verticalKick;
+            _pitch = Mathf.Clamp(_pitch, _minPitch, _maxPitch);
+        }
+
         private void HandleLookRotation()
         {
             Vector2 lookInput = _input.LookInput;
